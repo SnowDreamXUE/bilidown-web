@@ -1,7 +1,7 @@
 <template>
   <div id="home">
     <div class="logo">
-      <img src="@/assets/BILIBILI_LOGO.svg" draggable="false"/>
+      <img src="@/assets/BILIBILI_LOGO.svg" draggable="false" alt="logo"/>
     </div>
 
     <div class="input_search">
@@ -12,59 +12,71 @@
 
     <div class="use-info">
       <el-collapse :accordion="true" v-model="activeNames">
-        <!-- 分集选择 -->
-        <el-collapse-item v-show="pages.length > 1" title="选择分集" name="分集">
-          <el-checkbox-group v-model="selectedPages">
-            <el-checkbox
-                v-for="(page, index) in pages"
-                :key="index"
-                :label="index"
-                class="page-checkbox"
-            >
-              {{ page.part }} (P{{ index + 1 }})
-            </el-checkbox>
-          </el-checkbox-group>
-        </el-collapse-item>
+        <!-- 第一步：分集选择 -->
+        <el-collapse-item v-show="currentStep === 1 && pages.length > 0" title="选择分集" name="分集">
+          <div class="step-content">
+            <el-checkbox-group v-model="selectedPages">
+              <el-checkbox
+                  v-for="(page, index) in pages"
+                  :key="index"
+                  :label="index"
+                  class="page-checkbox"
+              >
+                {{ page.part }} (P{{ index + 1 }})
+              </el-checkbox>
+            </el-checkbox-group>
 
-        <!-- 视频下载列表 -->
-        <el-collapse-item v-show="downloadUrls.length > 0" title="视频地址" name="视频地址">
-          <div v-for="item in downloadUrls" :key="item.cid" class="download-item">
-            <p class="video-title">{{ item.title }}</p>
-            <p class="video-actions">
-              <el-col :span="18">
-                <a :href="item.url" target="_blank">预览视频</a>
-                <a href v-show="!downVideoStatus[item.cid]" @click.prevent="downVideo(item)">下载视频</a>
-                <a href v-show="downVideoStatus[item.cid]" @click.prevent="cancelDownload(item)">取消下载</a>
-              </el-col>
-              <el-col :span="6">
-                <el-select
-                    class="quality"
-                    v-model="item.qn"
-                    placeholder="选择清晰度"
-                    @change="getDownloadUrl(item.cid,item.qn)"
-                >
-                  <el-option
-                      v-for="(option, index) in item.Qualities"
-                      :label="option.label"
-                      :value="option.value"
-                  ></el-option>
-                </el-select>
-              </el-col>
-              <el-progress
-                  v-show="downVideoStatus[item.cid]"
-                  :percentage="progress[item.cid]"
-                  :format="format"
-              ></el-progress>
-            </p>
+            <div class="step-actions">
+              <el-button
+                  class="next-step"
+                  @click="handleNextStep"
+                  :disabled="selectedPages.length === 0"
+              >
+                下一步
+              </el-button>
+            </div>
           </div>
         </el-collapse-item>
 
-        <!-- 封面地址 -->
-        <el-collapse-item v-show="bgUrl != ''" title="封面地址" name="2">
-          <p>{{ imgUrl }}</p>
-          <p>
-            <a rel="noreferrer" :href="imgUrl" target="_blank">预览图片</a>
-          </p>
+        <!-- 第二步：下载列表 -->
+        <el-collapse-item v-show="currentStep === 2" title="下载列表" name="下载列表">
+          <div class="step-content">
+            <div class="step-header">
+              <el-button class="prev-step" @click="currentStep = 1">
+                返回修改
+              </el-button>
+            </div>
+
+            <div v-for="item in downloadUrls" :key="item.cid" class="download-item">
+              <p class="video-title">{{ item.title }}</p>
+              <p class="video-actions">
+                <el-col :span="18">
+                  <a :href="item.url" target="_blank">预览视频</a>
+                  <a href v-show="!downVideoStatus[item.cid]" @click.prevent="downVideo(item)">下载视频</a>
+                  <a href v-show="downVideoStatus[item.cid]" @click.prevent="cancelDownload(item)">取消下载</a>
+                </el-col>
+                <el-col :span="6">
+                  <el-select
+                      class="quality"
+                      v-model="item.qn"
+                      placeholder="选择清晰度"
+                      @change="getDownloadUrl(item.cid,item.qn)"
+                  >
+                    <el-option
+                        v-for="(option, index) in item.Qualities"
+                        :label="option.label"
+                        :value="option.value"
+                    ></el-option>
+                  </el-select>
+                </el-col>
+                <el-progress
+                    v-show="downVideoStatus[item.cid]"
+                    :percentage="progress[item.cid]"
+                    :format="format"
+                ></el-progress>
+              </p>
+            </div>
+          </div>
         </el-collapse-item>
 
       </el-collapse>
@@ -79,7 +91,7 @@ axios.defaults.baseURL = "http://localhost:8989"
 export default {
   mounted() {
     document.body.addEventListener("keydown", e => {
-      if (e.ctrlKey && e.keyCode == 66) {
+      if (e.ctrlKey && e.keyCode === 66) {
         this.videoUrl = "";
       }
     });
@@ -111,10 +123,46 @@ export default {
       downVideoStatus: {}, // 下载状态 {cid: boolean}
       progress: {},        // 下载进度 {cid: percentage}
       sources: {},          // 取消令牌 {cid: source}
+      currentStep: 1, // 1: 选择分集，2: 下载列表
     };
   },
 
   methods: {
+
+    // 新增步骤控制方法
+    handleNextStep() {
+      if (this.selectedPages.length === 0) {
+        this.$message.warning("请至少选择一个分集");
+        return;
+      }
+
+      this.currentStep = 2;
+      this.fetchDownloadUrls();
+    },
+
+    // 拆分出的获取下载链接方法
+    async fetchDownloadUrls() {
+      this.downloadUrls = [];
+
+      try {
+        // 获取所有选中分集的下载链接
+        const promises = this.selectedPages.map(index => {
+          const cid = this.pages[index].cid;
+          return this.getDownloadUrl(cid, 80);
+        });
+
+        await Promise.all(promises);
+        this.$nextTick(() => {
+          this.activeNames = '下载列表'; // 自动展开下载列表
+        });
+      } catch (error) {
+        this.$notify.error({
+          title: '获取下载链接失败',
+          message: error.message,
+          duration: 3000
+        });
+      }
+    },
 
     // 取消单个下载
     cancelDownload(item) {
@@ -202,19 +250,27 @@ export default {
     },
 
     // 主下载流程
-    download() {
-      this.change()
-      this.parseUrl().then(() => {
+    // 修改后的下载流程
+    async download() {
+      this.currentStep = 1; // 重置为第一步
+      this.change();
+
+      try {
+        await this.parseUrl();
         if (this.bv) {
-          this.getAvidCidByBv().then(() => {
-            const requests = this.selectedPages.map(index => {
-              const cid = this.pages[index].cid
-              // return this.getDownloadUrl(cid,80)
-            })
-            Promise.all(requests)
-          })
+          await this.getAvidCidByBv();
+          // 自动展开分集选择
+          this.$nextTick(() => {
+            this.activeNames = '分集';
+          });
         }
-      })
+      } catch (error) {
+        this.$notify.error({
+          title: '解析链接失败',
+          message: error.message,
+          duration: 3000
+        });
+      }
     },
 
     // 解析URL
@@ -332,16 +388,26 @@ export default {
         this.handlePageSelection();
       }
     },
-
-    // 监听分集选择变化
-    selectedPages() {
-      this.handlePageSelection();
-    }
   }
 };
 </script>
 
 <style lang="less">
+
+.step-content {
+  padding: 16px;
+}
+
+.step-actions {
+  margin-top: 24px;
+  text-align: right;
+}
+
+.step-header {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
 
 .quality-select .el-select {
   width: 100%;
@@ -525,7 +591,7 @@ export default {
         background-color: #eee;
         color: #1296db;
         font-weight: 700;
-        padding: 0px 10px;
+        padding: 0 10px;
         border-radius: 100px;
         margin-right: 20px;
         height: 21px;
