@@ -1,4 +1,4 @@
-package com.zhouql.config;
+package com.snow.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

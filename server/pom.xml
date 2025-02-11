@@ -54,7 +54,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>${spring-boot.version}</version>
                 <configuration>
-                    <mainClass>com.zhouql.ServerApplication</mainClass>
+                    <mainClass>com.snow.ServerApplication</mainClass>
                     <skip>true</skip>
                 </configuration>
                 <executions>

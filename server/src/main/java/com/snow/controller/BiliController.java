@@ -1,4 +1,4 @@
-package com.zhouql.controller;
+package com.snow.controller;
 
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
