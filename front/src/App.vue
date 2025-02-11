@@ -19,13 +19,26 @@
 <script>
 </script>
 <style>
-.el-aside {
-  width: 100px!important;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
+
+.el-main {
+  padding: 0;
+  margin: 0;
+}
+
+.el-aside {
+  width: 100px !important;
+}
+
 .nav-side {
   height: 100vh;
   width: 100px;
 }
+
 .el-menu-item {
   text-align: center;
 }

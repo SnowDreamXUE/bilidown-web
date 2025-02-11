@@ -19,13 +19,13 @@ public class videoDownload {
 
         // 下载视频文件
         String videoFilePath = "video.m4s";
-        downloadFile(videoUrl, cookie, videoFilePath);
-        System.out.println("视频文件下载完成: " + videoFilePath);
+//        downloadFile(videoUrl, cookie, videoFilePath);
+//        System.out.println("视频文件下载完成: " + videoFilePath);
 
         // 下载音频文件
         String audioFilePath = "audio.m4s";
-        downloadFile(audioUrl, cookie, audioFilePath);
-        System.out.println("音频文件下载完成: " + audioFilePath);
+//        downloadFile(audioUrl, cookie, audioFilePath);
+//        System.out.println("音频文件下载完成: " + audioFilePath);
 
         // 合并音视频（可选）
         String outputFilePath = "output.mp4";
@@ -59,7 +59,7 @@ public class videoDownload {
     private static void mergeVideoAndAudio(String videoFilePath, String audioFilePath, String outputFilePath) {
         try {
             // 使用 FFmpeg 合并音视频
-            String ffmpegCommand = String.format("ffmpeg -i %s -i %s -c copy %s", videoFilePath, audioFilePath, outputFilePath);
+            String ffmpegCommand = String.format("D:/Program Files/ffmpeg-7.1-essentials_build/bin/ffmpeg -i %s -i %s -c copy %s", videoFilePath, audioFilePath, outputFilePath);
             Process process = Runtime.getRuntime().exec(ffmpegCommand);
             process.waitFor(); // 等待合并完成
         } catch (Exception e) {

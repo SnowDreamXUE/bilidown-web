@@ -5,15 +5,14 @@
     </div>
 
     <div class="input_search">
-      <input type="text" placeholder="请输入视频链接..." @input="change" @keyup.enter="download"
-             v-model.trim="videoUrl"/>
+      <input type="text" placeholder="请输入视频链接..." v-model.trim="videoUrl"/>
       <button @click="download">获取</button>
     </div>
 
     <div class="use-info">
       <el-collapse :accordion="true" v-model="activeNames">
         <!-- 第一步：分集选择 -->
-        <el-collapse-item v-show="currentStep === 1 && pages.length > 0" title="选择分集" name="分集">
+        <el-collapse-item v-show="pages.length > 0" title="选择分集" name="分集">
           <div class="step-content">
             <el-checkbox-group v-model="selectedPages">
               <el-checkbox
@@ -38,47 +37,6 @@
           </div>
         </el-collapse-item>
 
-        <!-- 第二步：下载列表 -->
-        <el-collapse-item v-show="currentStep === 2" title="下载列表" name="下载列表">
-          <div class="step-content">
-            <div class="step-header">
-              <el-button class="prev-step" @click="currentStep = 1">
-                返回修改
-              </el-button>
-            </div>
-
-            <div v-for="item in downloadUrls" :key="item.cid" class="download-item">
-              <p class="video-title">{{ item.title }}</p>
-              <p class="video-actions">
-                <el-col :span="18">
-                  <a :href="item.url" target="_blank">预览视频</a>
-                  <a href v-show="!downVideoStatus[item.cid]" @click.prevent="downVideo(item)">下载视频</a>
-                  <a href v-show="downVideoStatus[item.cid]" @click.prevent="cancelDownload(item)">取消下载</a>
-                </el-col>
-                <el-col :span="6">
-                  <el-select
-                      class="quality"
-                      v-model="item.qn"
-                      placeholder="选择清晰度"
-                      @change="getDownloadUrl(item.cid,item.qn)"
-                  >
-                    <el-option
-                        v-for="(option, index) in item.Qualities"
-                        :label="option.label"
-                        :value="option.value"
-                    ></el-option>
-                  </el-select>
-                </el-col>
-                <el-progress
-                    v-show="downVideoStatus[item.cid]"
-                    :percentage="progress[item.cid]"
-                    :format="format"
-                ></el-progress>
-              </p>
-            </div>
-          </div>
-        </el-collapse-item>
-
       </el-collapse>
     </div>
   </div>
@@ -86,24 +44,14 @@
 
 <script>
 import axios from "axios"
+
 axios.defaults.baseURL = "http://localhost:8989"
+import {mapActions} from "vuex"
+import router from "@/router";
 
 export default {
   mounted() {
-    document.body.addEventListener("keydown", e => {
-      if (e.ctrlKey && e.keyCode === 66) {
-        this.videoUrl = "";
-      }
-    });
-
-    setTimeout(() => {
-      this.$notify({
-        title: "欢迎使用",
-        message: "欢迎使用本工具，愿你有个好心情✨",
-        type: "success",
-        duration: 2500
-      });
-    }, 200);
+    this.videoUrl = this.$store.state.videoUrl || "";
 
     document.querySelector("input").focus();
   },
@@ -119,15 +67,11 @@ export default {
       p: "",
       pages: [],          // 所有分集信息
       selectedPages: [],  // 选中的分集索引
-      downloadUrls: [],   // 分集下载链接
-      downVideoStatus: {}, // 下载状态 {cid: boolean}
-      progress: {},        // 下载进度 {cid: percentage}
-      sources: {},          // 取消令牌 {cid: source}
-      currentStep: 1, // 1: 选择分集，2: 下载列表
     };
   },
 
   methods: {
+    ...mapActions(['saveData', 'setVideoUrl']),
 
     // 新增步骤控制方法
     handleNextStep() {
@@ -136,123 +80,29 @@ export default {
         return;
       }
 
-      this.currentStep = 2;
-      this.fetchDownloadUrls();
+      this.saveData({
+        bgUrl: this.imgUrl(),
+        avid: this.avid,
+        p: this.p,
+        pages: this.pages,
+        selectedPages: this.selectedPages
+      })
+      router.push({name: "Download"})
     },
 
-    // 拆分出的获取下载链接方法
-    async fetchDownloadUrls() {
-      this.downloadUrls = [];
-
-      try {
-        // 获取所有选中分集的下载链接
-        const promises = this.selectedPages.map(index => {
-          const cid = this.pages[index].cid;
-          return this.getDownloadUrl(cid, 80);
-        });
-
-        await Promise.all(promises);
-        this.$nextTick(() => {
-          this.activeNames = '下载列表'; // 自动展开下载列表
-        });
-      } catch (error) {
-        this.$notify.error({
-          title: '获取下载链接失败',
-          message: error.message,
-          duration: 3000
-        });
-      }
-    },
-
-    // 取消单个下载
-    cancelDownload(item) {
-      const source = this.sources[item.cid]
-      if (source) {
-        source.cancel('用户取消下载')
-        this.$set(this.downVideoStatus, item.cid, false)
-        this.$set(this.progress, item.cid, 0)
-        this.$notify({
-          title: "已取消",
-          message: `已取消下载：${item.title}`,
-          type: "warning",
-          duration: 2000
-        })
-      }
-    },
-
-    downVideo(item) {
-      // 添加下载状态锁
-      if (this.downVideoStatus[item.cid]) return;
-
-      this.$set(this.downVideoStatus, item.cid, true);
-
-      const source = axios.CancelToken.source();
-      this.$set(this.sources, item.cid, source);
-
-      axios.get(item.url, {
-        responseType: "blob",
-        timeout: 3000000, // 添加超时设置
-        headers: {
-          "Referer": "https://www.bilibili.com" // 添加必要请求头
-        },
-        cancelToken: source.token,
-        onDownloadProgress: evt => {
-          const percent = parseInt((evt.loaded / evt.total) * 100);
-          this.$set(this.progress, item.cid, percent);
-        }
-      }).then(resp => {
-        if (resp.status !== 200 || !resp.data.type.includes('video')) {
-          throw new Error('无效的视频文件');
-        }
-
-        const blob = new Blob([resp.data], {type: 'video/mp4'});
-        const downloadUrl = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.style.display = "none";
-        a.href = downloadUrl;
-        a.download = `${item.title}.mp4`;
-
-        document.body.appendChild(a);
-        a.click();
-
-        // 清理资源
-        URL.revokeObjectURL(downloadUrl);
-        document.body.removeChild(a);
-
-      }).catch(error => {
-        if (!axios.isCancel(error)) {
-          this.$notify.error({
-            title: "下载失败",
-            message: `失败原因：${error.message || '未知错误'}`,
-            duration: 3000
-          });
-        }
-      }).finally(() => {
-        this.$set(this.downVideoStatus, item.cid, false);
-      });
-    },
-
-    // 进度显示格式
-    format(percentage) {
-      return percentage === 100 ? "完成" : `${percentage}%`
-    },
 
     // 输入变化时重置
     change() {
-      this.downloadUrls = []
+      this.setVideoUrl(this.videoUrl)
       this.pages = []
       this.selectedPages = []
       this.bgUrl = ""
-      Object.values(this.sources).forEach(source => source.cancel())
-      this.downVideoStatus = {}
-      this.progress = {}
     },
 
     // 主下载流程
     // 修改后的下载流程
     async download() {
-      this.currentStep = 1; // 重置为第一步
+
       this.change();
 
       try {
@@ -307,92 +157,15 @@ export default {
         })
       })
     },
-
-
-    // 修改后的获取下载链接方法
-    async getDownloadUrl(cid, qn) {
-      try {
-        const res = await axios.get(`/download/${this.avid}/${cid}?qn=${qn}`);
-        console.log(res.data);
-
-        // 提取清晰度选项
-        let accept_description = res.data.data.accept_description;
-        let accept_quality = res.data.data.accept_quality;
-        const Qualities = accept_description.map((q, index) => ({
-          value: accept_quality[index],
-          label: accept_description[index],
-        }));
-
-        // 处理DASH格式的视频和音频
-        const videoList = res.data.data.dash.video || [];
-        const audioList = res.data.data.dash.audio || [];
-
-        // 示例：选择最高质量的视频和音频流（根据实际需求调整）
-        const bestVideo = videoList.find(video => video.id === qn);
-        const bestAudio = audioList[0]; // 假设音频只有一种选择
-
-        if (bestVideo && bestAudio) {
-          const title = this.pages.find(p => p.cid === cid).part;
-
-          // 更新下载链接（这里我们假设只需要视频链接，实际情况可能需要合成音视频）
-          const existing = this.downloadUrls.find(item => item.cid === cid);
-          if (existing) {
-            existing.url = bestVideo.baseUrl; // 使用视频的基本URL作为下载链接
-            existing.audioUrl = bestAudio.baseUrl; // 如果也需要音频链接的话
-          } else {
-            this.downloadUrls.push({
-              cid,
-              url: bestVideo.baseUrl,
-              audioUrl: bestAudio.baseUrl, // 如果也需要音频链接的话
-              title,
-              Qualities,
-              qn
-            });
-          }
-        } else {
-          this.$notify.error({
-            title: '获取链接失败',
-            message: `CID:${cid} 清晰度${qn}不可用或无音频流`,
-            duration: 3000
-          });
-        }
-      } catch (error) {
-        this.$notify.error({
-          title: '获取链接失败',
-          message: `CID:${cid} 请求过程中发生错误`,
-          duration: 3000
-        });
-      }
-    },
-
-    // 修改后的分集选择处理
-    async handlePageSelection() {
-      this.downloadUrls = [];
-      // 获取每个分集的可用清晰度
-      for (const index of this.selectedPages) {
-        const cid = this.pages[index].cid;
-        await this.getDownloadUrl(cid,80);
-      }
-    }
-  },
-
-  computed: {
+    // 获取视频封面
     imgUrl() {
       return this.bgUrl ? "https" + this.bgUrl.substring(4) : ""
     }
   },
-  watch: {
-    // 监听清晰度变化
-    selectedQuality(newVal) {
-      if (newVal) {
-        this.handlePageSelection();
-      }
-    },
-  }
 };
 </script>
 
-<style lang="less">
+<style lang="less" scoped>
 
 .step-content {
   padding: 16px;
@@ -401,16 +174,6 @@ export default {
 .step-actions {
   margin-top: 24px;
   text-align: right;
-}
-
-.step-header {
-  margin-bottom: 16px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 8px;
-}
-
-.quality-select .el-select {
-  width: 100%;
 }
 
 .page-checkbox {
@@ -423,72 +186,22 @@ export default {
   }
 }
 
-.download-item {
-  margin: 15px 0;
-  padding: 12px;
-  border-radius: 6px;
-  background: #f8f8f8;
-
-  .video-title {
-    font-weight: 500;
-    color: #333;
-    margin-bottom: 6px;
-  }
-
-  .video-url {
-    font-size: 12px;
-    color: #666;
-    word-break: break-all;
-    margin-bottom: 10px;
-  }
-
-  .video-actions {
-    a {
-      margin-right: 15px;
-      padding: 4px 12px;
-      border-radius: 15px;
-      background: #e8f4ff;
-      color: #1296db;
-      transition: all 0.2s;
-
-      &:hover {
-        background: #1296db;
-        color: white;
-      }
-    }
-  }
-}
-
-.el-progress {
-  margin-top: 10px;
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-.content {
-  padding: 16px 16px 160px;
-}
-
 #home {
   display: flex;
   justify-content: flex-start;
   align-items: center;
   flex-direction: column;
-  min-height: 100vh;
+  height: calc(100vh - 20px);
 
   .logo {
     width: 35%;
+    height: 100px;
     display: flex;
     justify-content: center;
     align-items: center;
-
+    margin-top: 50px;
     img {
       width: 30%;
-      margin-top: 200px;
       user-select: none;
     }
   }
@@ -542,86 +255,6 @@ export default {
 
   .van-cell::after {
     border: none;
-  }
-
-  @media screen and (max-width: 600px) {
-    .logo {
-      width: 55%;
-
-      img {
-        width: 50%;
-      }
-    }
-
-    .input_search {
-      width: 90%;
-
-      input {
-        width: 85%;
-        height: 40px;
-      }
-
-      button {
-        width: 15%;
-        height: 40px;
-      }
-    }
-
-    .use-info {
-      width: 89%;
-    }
-  }
-
-  .el-collapse-item__header {
-    border: none;
-  }
-
-  .el-collapse-item__content {
-    padding-bottom: 7px;
-
-    p {
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      color: #888;
-      padding: 0 0 10px 0;
-
-      a {
-        display: inline-block;
-        background-color: #eee;
-        color: #1296db;
-        font-weight: 700;
-        padding: 0 10px;
-        border-radius: 100px;
-        margin-right: 20px;
-        height: 21px;
-        line-height: 21px;
-        font-size: 12px;
-        text-decoration: none;
-        transition: background-color 0.3s, color 0.1s;
-
-        &:hover {
-          background-color: #1296db;
-          color: #fcfcfc;
-        }
-      }
-    }
-  }
-
-  .tablist {
-    margin-bottom: 100px;
-  }
-
-  .el-progress-bar__inner {
-    background-color: #1296db;
-  }
-
-  .el-progress-bar {
-    padding-top: 12px;
-  }
-
-  .el-progress__text {
-    margin-left: 12px;
   }
 }
 </style>
