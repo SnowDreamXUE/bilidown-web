@@ -34,6 +34,16 @@ const store = new Vuex.Store({
         setDownloadUrls(state, downloadUrls) {
             state.downloadUrls = downloadUrls
         },
+
+        // 删除选中的分集
+        removeSelectedPage(state, cid) {
+            // 从 selectedPages 中移除对应的分集索引
+            state.selectedPages = state.selectedPages.filter(selectedCid => selectedCid !== cid);
+
+            // 如果需要同时从 pages 中移除分集数据
+            state.pages = state.pages.filter(page => page.cid !== cid);
+        }
+
     },
 
     actions: {
@@ -58,6 +68,11 @@ const store = new Vuex.Store({
         setDownloadUrls(context, downloadUrls) {
             context.commit('setDownloadUrls', downloadUrls)
         },
+
+        removeSelectedPage(context, cid) {
+            context.commit('removeSelectedPage', cid)
+        },
+
         saveData(context, data) {
             context.commit('setBgUrl', data.bgUrl)
             context.commit('setAvid', data.avid)
@@ -73,7 +88,7 @@ const store = new Vuex.Store({
             context.commit('setPages', [])
             context.commit('setSelectedPages', [])
             context.commit('setDownloadUrls', [])
-        }
+        },
     },
 
 })

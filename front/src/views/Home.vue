@@ -18,7 +18,7 @@
               <el-checkbox
                   v-for="(page, index) in pages"
                   :key="index"
-                  :label="index"
+                  :label="page.cid"
                   class="page-checkbox"
               >
                 {{ page.part }} (P{{ index + 1 }})
@@ -52,8 +52,6 @@ import router from "@/router";
 export default {
   mounted() {
     this.videoUrl = this.$store.state.videoUrl || "";
-
-    document.querySelector("input").focus();
   },
 
   data() {
@@ -152,7 +150,7 @@ export default {
           this.avid = resp.data.data.aid
           this.bgUrl = resp.data.data.pic
           this.pages = resp.data.data.pages
-          this.selectedPages = Array.from({length: this.pages.length}, (_, i) => i)
+          this.selectedPages = this.pages.map(page => page.cid);
           resolve()
         })
       })

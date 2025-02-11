@@ -1,7 +1,9 @@
 <template>
   <div class="download-page">
-    <div v-if="!pages || pages.length === 0" class="no-data">暂无数据</div>
-
+    <div v-if="downloadUrls.length === 0" class="no-data">暂无数据</div>
+    <div v-if="downloadUrls.length > 1" class="once">
+      <el-button type="primary" round @click="downloadAll">全部下载</el-button>
+    </div>
     <div v-for="item in downloadUrls" :key="item.cid" class="download-item">
       <el-col :span="12">
         <div class="video-title">{{ item.title }}</div>
@@ -35,6 +37,7 @@
 
 <script>
 import axios from "axios";
+import {mapActions} from "vuex";
 axios.defaults.baseURL = "http://localhost:8989"
 
 export default {
@@ -56,6 +59,7 @@ export default {
   },
 
   methods: {
+    ...mapActions(['removeSelectedPage']),
 
     init() {
       const videoData = this.$store.state;
@@ -73,8 +77,7 @@ export default {
 
       try {
         // 获取所有选中分集的下载链接
-        const promises = this.selectedPages.map(index => {
-          const cid = this.pages[index].cid;
+        const promises = this.selectedPages.map(cid => {
           return this.getDownloadUrl(cid, 80);
         });
 
@@ -161,8 +164,54 @@ export default {
           message: res.data,
           duration: 3000
         })
+
+        // 新增：下载成功后移除当前项
+        const index = this.downloadUrls.findIndex(d => d.cid === item.cid);
+        if (index !== -1) {
+          this.downloadUrls.splice(index, 1);
+        }
+        this.removeSelectedPage(item.cid);
+      }).catch(error => {
+        this.$notify.error({
+          title: '下载失败',
+          message: error.message,
+          duration: 3000
+        });
       })
     },
+
+    // 全部下载功能
+    downloadAll() {
+      if (this.downloadUrls.length === 0) {
+        this.$notify.warning({
+          title: '提示',
+          message: '当前没有可下载的视频',
+          duration: 3000
+        });
+        return;
+      }
+
+      this.$confirm('确认要下载所有视频吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.downloadUrls.forEach(item => {
+          this.downVideo(item); // 调用单个下载方法
+        });
+        this.$notify.success({
+          title: '操作成功',
+          message: '已开始批量下载',
+          duration: 3000
+        });
+      }).catch(() => {
+        this.$notify.info({
+          title: '已取消',
+          message: '批量下载已取消',
+          duration: 3000
+        });
+      });
+    }
 
   }
 }
@@ -182,6 +231,10 @@ export default {
   font-size: 20px;
   color: #999;
   margin-top: 20px;
+}
+
+.once {
+  width: 70%;
 }
 
 .download-item {
