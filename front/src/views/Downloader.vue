@@ -3,11 +3,11 @@
     <div v-if="!pages || pages.length === 0" class="no-data">暂无数据</div>
 
     <div v-for="item in downloadUrls" :key="item.cid" class="download-item">
-      <el-col :span="8">
+      <el-col :span="12">
         <div class="video-title">{{ item.title }}</div>
       </el-col>
 
-      <el-col :span="8">
+      <el-col :span="7">
         <div class="video-quality">
           <el-select
               class="select-quality"
@@ -17,13 +17,14 @@
           >
             <el-option
                 v-for="(option, index) in item.Qualities"
+                :key="index"
                 :label="option.label"
                 :value="option.value"
             ></el-option>
           </el-select>
         </div>
       </el-col>
-      <el-col :span="8">
+      <el-col :span="5">
        <div class="download-action">
          <el-button type="primary" @click="downVideo(item)">下载</el-button>
        </div>
@@ -99,7 +100,7 @@ export default {
         // 提取清晰度选项
         let accept_description = res.data.data.accept_description;
         let accept_quality = res.data.data.accept_quality;
-        const Qualities = accept_description.map((q, index) => ({
+        const Qualities = accept_description.map((_, index) => ({
           value: accept_quality[index],
           label: accept_description[index],
         }));
@@ -148,7 +149,19 @@ export default {
 
 
     downVideo(item) {
-      console.log(item)
+      let videoData = {
+        title: item.title,
+        videoUrl: item.videoUrl,
+        audioUrl: item.audioUrl,
+        qn: item.qn
+      }
+      axios.post(`/downloadVideo`,videoData).then(res => {
+        this.$notify.info({
+          title: '下载成功',
+          message: res.data,
+          duration: 3000
+        })
+      })
     },
 
   }
