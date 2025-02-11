@@ -3,6 +3,8 @@
 项目基于b站up 王子周棋洛 遗留下的最初始版本bilidown-web进行重新开发
 ## 功能
 实现扫码登录，一键下载视频
+## 使用
+需要自行下载ffmpeg工具，`DownloadController`类中的`mergeVideoAndAudio`方法中修改ffmpeg路径
 ## 声明
 本项目只支持由UP主上传的普通视频（不包含充电专属，番剧，影视等内容。）
 
